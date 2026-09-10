@@ -1,0 +1,32 @@
+FROM postgres:15
+
+RUN apt-get update && apt-get install -y \
+    phppgadmin \
+    supervisor \
+    apache2 \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN a2enconf phppgadmin || true
+RUN sed -i 's/Require local/Require all granted/g' /etc/phppgadmin/apache.conf || true
+RUN sed -i 's/Require local/Require all granted/g' /etc/apache2/conf-available/phppgadmin.conf || true
+RUN sed -i "s/\$conf\['extra_login_security'\] = true;/\$conf\['extra_login_security'\] = false;/" /etc/phppgadmin/config.inc.php
+
+RUN mkdir -p /var/log/supervisor
+COPY <<'SUPERVISOR_CONF' /etc/supervisor/conf.d/supervisord.conf
+[supervisord]
+nodaemon=true
+
+[program:postgresql]
+command=docker-entrypoint.sh postgres
+autostart=true
+autorestart=true
+
+[program:apache2]
+command=/usr/sbin/apache2ctl -D FOREGROUND
+autostart=true
+autorestart=true
+SUPERVISOR_CONF
+
+EXPOSE 5432 80
+
+CMD ["/usr/bin/supervisord"]
